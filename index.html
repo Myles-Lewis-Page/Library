@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Library Manager</title>
+<link rel="stylesheet" href="css/styles.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+<!-- ═══════════════════════════ LOGIN ═══════════════════════════ -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">📚</div>
+    <h1>Library Manager</h1>
+    <p>Sign in with your staff account</p>
+    <form id="login-form">
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" id="login-email" placeholder="staff@library.edu" autocomplete="username" required>
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password" required>
+      </div>
+      <button type="submit" class="login-btn-full" id="login-btn">Sign in</button>
+      <div id="login-error"></div>
+    </form>
+  </div>
+</div>
+
+<!-- ═══════════════════════════ APP ════════════════════════════ -->
+<div id="app-screen">
+
+  <div class="topbar">
+    <h1>📚 Library Manager</h1>
+    <div class="topbar-right">
+      <span id="user-email"></span>
+      <button class="logout-btn" onclick="logout()">Sign out</button>
+    </div>
+    <nav>
+      <button class="active" onclick="showPanel('dashboard',this)">Dashboard</button>
+      <button onclick="showPanel('books',this)">Books</button>
+      <button onclick="showPanel('users',this)">Patrons</button>
+      <button onclick="showPanel('checkout',this)">Check Out</button>
+      <button onclick="showPanel('checkin',this)">Check In</button>
+      <button onclick="showPanel('checkedout',this)">Checked Out</button>
+      <button id="nav-overdue" onclick="showPanel('overdue',this)">Overdue</button>
+      <button onclick="showPanel('holds',this)">Holds</button>
+    </nav>
+  </div>
+
+  <div class="content">
+    <div id="alert-area"></div>
+
+    <!-- DASHBOARD -->
+    <div id="panel-dashboard" class="panel active">
+      <div class="summary-cards" id="stat-cards"></div>
+      <div class="section-head">Currently checked out</div>
+      <table>
+        <thead><tr><th>Book</th><th>Author</th><th>Patron</th><th>Checked out</th><th>Due date</th><th>Status</th><th>Hold</th></tr></thead>
+        <tbody id="dash-table"></tbody>
+      </table>
+    </div>
+
+    <!-- BOOKS -->
+    <div id="panel-books" class="panel">
+      <div class="toolbar">
+        <input id="book-search" placeholder="Search books…" oninput="renderBooks()">
+        <button class="btn primary" onclick="openModal('add-book')">+ Add book</button>
+      </div>
+      <table>
+        <thead><tr><th>Title</th><th>Author</th><th>ISBN</th><th>Status</th><th>Hold</th><th>Actions</th></tr></thead>
+        <tbody id="books-table"></tbody>
+      </table>
+    </div>
+
+    <!-- PATRONS -->
+    <div id="panel-users" class="panel">
+      <div class="toolbar">
+        <input id="user-search" placeholder="Search patrons…" oninput="renderUsers()">
+        <button class="btn primary" onclick="openModal('add-user')">+ Add patron</button>
+      </div>
+      <table>
+        <thead><tr><th>Name</th><th>Email</th><th>Checked out (max 3)</th><th>Actions</th></tr></thead>
+        <tbody id="users-table"></tbody>
+      </table>
+    </div>
+
+    <!-- CHECKOUT -->
+    <div id="panel-checkout" class="panel">
+      <div class="co-form">
+        <div class="section-head">Check out a book</div>
+        <div class="form-group"><label>Book (available only)</label><select id="co-book"></select></div>
+        <div class="form-group"><label>Patron</label><select id="co-user" onchange="updateUserLimitUI()"></select></div>
+        <div id="co-limit-info" style="margin-bottom:10px;font-size:12px;color:var(--text2)"></div>
+        <div class="form-group"><label>Due date</label><input type="date" id="co-due"></div>
+        <button class="btn primary" onclick="doCheckout()">Check out</button>
+      </div>
+    </div>
+
+    <!-- CHECK IN -->
+    <div id="panel-checkin" class="panel">
+      <div class="co-form">
+        <div class="section-head">Check in a book</div>
+        <div class="form-group"><label>Book to return</label><select id="ci-book"></select></div>
+        <button class="btn success" onclick="doCheckin()">Check in</button>
+      </div>
+    </div>
+
+    <!-- CHECKED OUT -->
+    <div id="panel-checkedout" class="panel">
+      <div class="toolbar">
+        <span style="font-size:13px;color:var(--text2);flex:1" id="co-tab-count"></span>
+      </div>
+      <table>
+        <thead><tr><th>Book</th><th>Author</th><th>Patron</th><th>Email</th><th>Checked out</th><th>Due date</th><th>Hold</th></tr></thead>
+        <tbody id="checkedout-table"></tbody>
+      </table>
+    </div>
+
+    <!-- OVERDUE -->
+    <div id="panel-overdue" class="panel">
+      <div class="toolbar">
+        <span style="font-size:13px;color:var(--text2);flex:1" id="overdue-tab-count"></span>
+        <button class="btn email-all" onclick="emailAll()" id="email-all-btn">✉ Send reminder to all</button>
+      </div>
+      <table>
+        <thead><tr><th>Days overdue</th><th>Book</th><th>Author</th><th>Patron</th><th>Email</th><th>Due date</th><th>Actions</th></tr></thead>
+        <tbody id="overdue-table"></tbody>
+      </table>
+    </div>
+
+    <!-- HOLDS -->
+    <div id="panel-holds" class="panel">
+      <div class="toolbar">
+        <span style="font-size:13px;color:var(--text2);flex:1">Manage holds on checked-out books</span>
+        <button class="btn primary" onclick="openHoldModal()">+ Place hold</button>
+      </div>
+      <table>
+        <thead><tr><th>Book</th><th>Author</th><th>Current patron</th><th>Due back</th><th>Held for</th><th>Actions</th></tr></thead>
+        <tbody id="holds-table"></tbody>
+      </table>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /app-screen -->
+
+<!-- ═══════════════════════════ MODALS ══════════════════════════ -->
+
+<div id="modal-add-book" class="modal-bg" style="display:none"><div class="modal">
+  <h2>Add new book</h2><div class="modal-sub">Saved immediately to the database</div>
+  <div class="form-group"><label>Title</label><input id="ab-title" placeholder="Book title"></div>
+  <div class="form-group"><label>Author</label><input id="ab-author" placeholder="Author name"></div>
+  <div class="form-group"><label>ISBN</label><input id="ab-isbn" placeholder="ISBN (optional)"></div>
+  <div class="modal-actions">
+    <button class="btn" onclick="closeModal('add-book')">Cancel</button>
+    <button class="btn primary" onclick="addBook()">Add book</button>
+  </div>
+</div></div>
+
+<div id="modal-add-user" class="modal-bg" style="display:none"><div class="modal">
+  <h2>Add new patron</h2><div class="modal-sub">Saved immediately to the database</div>
+  <div class="form-group"><label>Name</label><input id="au-name" placeholder="Full name"></div>
+  <div class="form-group"><label>Email</label><input id="au-email" placeholder="Email address"></div>
+  <div class="modal-actions">
+    <button class="btn" onclick="closeModal('add-user')">Cancel</button>
+    <button class="btn primary" onclick="addUser()">Add patron</button>
+  </div>
+</div></div>
+
+<div id="modal-edit-book" class="modal-bg" style="display:none"><div class="modal">
+  <h2>Edit book</h2><div class="modal-sub"></div>
+  <input type="hidden" id="eb-id">
+  <div class="form-group"><label>Title</label><input id="eb-title"></div>
+  <div class="form-group"><label>Author</label><input id="eb-author"></div>
+  <div class="form-group"><label>ISBN</label><input id="eb-isbn"></div>
+  <div class="modal-actions">
+    <button class="btn" onclick="closeModal('edit-book')">Cancel</button>
+    <button class="btn primary" onclick="saveBook()">Save</button>
+  </div>
+</div></div>
+
+<div id="modal-edit-user" class="modal-bg" style="display:none"><div class="modal">
+  <h2>Edit patron</h2><div class="modal-sub"></div>
+  <input type="hidden" id="eu-id">
+  <div class="form-group"><label>Name</label><input id="eu-name"></div>
+  <div class="form-group"><label>Email</label><input id="eu-email"></div>
+  <div class="modal-actions">
+    <button class="btn" onclick="closeModal('edit-user')">Cancel</button>
+    <button class="btn primary" onclick="saveUser()">Save</button>
+  </div>
+</div></div>
+
+<div id="modal-add-hold" class="modal-bg" style="display:none"><div class="modal">
+  <h2>Place a hold</h2><div class="modal-sub">Book must be checked out with no existing hold</div>
+  <div class="form-group"><label>Book</label><select id="ah-book"></select></div>
+  <div class="form-group"><label>Hold for patron</label><select id="ah-user"></select></div>
+  <div class="modal-actions">
+    <button class="btn" onclick="closeModal('add-hold')">Cancel</button>
+    <button class="btn warn" onclick="addHold()">Place hold</button>
+  </div>
+</div></div>
+
+<div id="modal-email" class="modal-bg" style="display:none"><div class="modal">
+  <h2>Send overdue reminder</h2>
+  <div class="modal-sub" id="em-sub"></div>
+  <div class="form-group"><label>To</label><input id="em-to" readonly style="color:var(--text2)"></div>
+  <div class="form-group"><label>Subject</label><input id="em-subject"></div>
+  <div class="form-group"><label>Message</label><textarea id="em-body"></textarea></div>
+  <div style="font-size:11px;color:var(--text2);margin-bottom:6px;font-weight:700;text-transform:uppercase;letter-spacing:.03em">Email preview</div>
+  <div class="email-preview" id="em-preview"></div>
+  <div class="modal-actions">
+    <button class="btn" onclick="closeModal('email')">Cancel</button>
+    <button class="btn email-all" onclick="sendEmail()">✉ Send reminder</button>
+  </div>
+</div></div>
+
+<div id="modal-email-all" class="modal-bg" style="display:none"><div class="modal">
+  <h2>Send reminders to all overdue patrons</h2>
+  <div class="modal-sub" id="ea-sub"></div>
+  <div id="ea-list" style="margin-bottom:12px;font-size:13px;line-height:2.2"></div>
+  <div style="font-size:11px;color:var(--text2);margin-bottom:6px;font-weight:700;text-transform:uppercase;letter-spacing:.03em">Template preview</div>
+  <div class="email-preview" id="ea-preview"></div>
+  <div class="modal-actions">
+    <button class="btn" onclick="closeModal('email-all')">Cancel</button>
+    <button class="btn email-all" onclick="confirmSendAll()">✉ Send all reminders</button>
+  </div>
+</div></div>
+
+<!-- Scripts -->
+<script src="js/config.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
